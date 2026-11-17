@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.School
@@ -91,6 +92,7 @@ fun WorkspaceSelectorScreen(
     val message by platformViewModel.actionMessage.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var showCreateDialog by remember { mutableStateOf(false) }
+    var schoolToDelete by remember { mutableStateOf<School?>(null) }
 
     LaunchedEffect(message) {
         message?.let {
@@ -272,6 +274,18 @@ fun WorkspaceSelectorScreen(
                                                 )
                                             }
                                         }
+                                        if (school.ownerUid == platformViewModel.currentUserId || platformViewModel.isSuperAdmin) {
+                                            IconButton(
+                                                onClick = { schoolToDelete = school },
+                                                modifier = Modifier.testTag("delete_school_${school.code}")
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Delete,
+                                                    contentDescription = "Supprimer l'établissement",
+                                                    tint = MaterialTheme.colorScheme.error
+                                                )
+                                            }
+                                        }
                                         Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = strings.openSchool)
                                     }
                                 }
@@ -281,6 +295,29 @@ fun WorkspaceSelectorScreen(
                 }
             }
         }
+    }
+
+    schoolToDelete?.let { target ->
+        AlertDialog(
+            onDismissRequest = { schoolToDelete = null },
+            title = { Text("Supprimer l'établissement ?") },
+            text = {
+                Text("« ${target.name} » (${target.code}) sera supprimé définitivement. Cette action est irréversible.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        platformViewModel.deleteSchool(target)
+                        schoolToDelete = null
+                    }
+                ) {
+                    Text("Supprimer", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { schoolToDelete = null }) { Text("Annuler") }
+            }
+        )
     }
 
     if (showCreateDialog) {
