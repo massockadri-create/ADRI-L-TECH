@@ -1,0 +1,6 @@
+{
+  "name": "Adriel School",
+  "description": "ADRIÈL SCHOOL MANAGER — Multi-tenant SaaS School Management ERP by ADRIÈL TECH.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

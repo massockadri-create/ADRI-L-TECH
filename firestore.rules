@@ -1,0 +1,721 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: deny everything by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HARDENED PRIMITIVES ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Token-only check (0 DB reads - safe inside allow list)
+    function isSuperAdminToken() {
+      return isSignedIn() &&
+             request.auth.token.email_verified == true &&
+             request.auth.token.email == 'adrielhk72@gmail.com';
+    }
+
+    // Full Super Admin check (for single-doc get/create/update/delete)
+    function isSuperAdmin() {
+      return isSuperAdminToken() ||
+             (isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+
+    function isValidTimestamps(data) {
+      return data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function hasValidMemberScope(data, schoolId) {
+      return data.schoolId is string && data.schoolId == schoolId &&
+             data.ownerUid is string && data.ownerUid.size() >= 1 && data.ownerUid.size() <= 128 &&
+             data.memberUids is list && data.memberUids.size() >= 1 && data.memberUids.size() <= 50 &&
+             (data.memberUids[0] is string) &&
+             data.ownerUid in data.memberUids;
+    }
+
+    function isSchoolMemberRecord(data) {
+      return isSignedIn() && (isSuperAdminToken() || request.auth.uid in data.memberUids);
+    }
+
+    function isSchoolOwnerRecord(data) {
+      return isSignedIn() && (isSuperAdminToken() || request.auth.uid == data.ownerUid);
+    }
+
+    // --- VALIDATION HELPERS ---
+
+    function isValidPlatformConfig(data) {
+      return data.appVersion is string && data.appVersion.size() >= 1 && data.appVersion.size() <= 30 &&
+             data.minSupportedVersion is string && data.minSupportedVersion.size() >= 1 && data.minSupportedVersion.size() <= 30 &&
+             data.maintenanceMode is bool &&
+             data.standardMonthlyFeeFcfa is int && data.standardMonthlyFeeFcfa >= 0 &&
+             data.supportEmail is string && data.supportEmail.size() <= 120 &&
+             data.supportPhone is string && data.supportPhone.size() <= 40 &&
+             data.releaseNotes is string && data.releaseNotes.size() <= 1000 &&
+             isValidTimestamps(data);
+    }
+
+    function isValidPlatformAdmin(data) {
+      return data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+             data.email is string && data.email.size() >= 3 && data.email.size() <= 120 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+             data.role in ['SUPER_ADMIN', 'SUPPORT_ADMIN'] &&
+             data.active is bool &&
+             isValidTimestamps(data);
+    }
+
+    function isValidSchool(data) {
+      return data.ownerUid is string && data.ownerUid.size() >= 1 && data.ownerUid.size() <= 128 &&
+             data.memberUids is list && data.memberUids.size() >= 1 && data.memberUids.size() <= 50 &&
+             data.ownerUid in data.memberUids &&
+             data.name is string && data.name.size() >= 2 && data.name.size() <= 120 &&
+             data.code is string && data.code.size() >= 2 && data.code.size() <= 30 &&
+             data.schoolType is string && data.schoolType.size() >= 1 && data.schoolType.size() <= 60 &&
+             data.city is string && data.city.size() <= 80 &&
+             data.country is string && data.country.size() <= 80 &&
+             data.subscriptionStatus in ['TRIAL', 'ACTIVE', 'EXPIRED', 'SUSPENDED'] &&
+             data.subscriptionEndMillis is int && data.subscriptionEndMillis >= 0 &&
+             data.monthlyFeeFcfa is int && data.monthlyFeeFcfa >= 0 &&
+             data.supportAccessEnabled is bool &&
+             (!('motto' in data) || (data.motto is string && data.motto.size() <= 200)) &&
+             (!('address' in data) || (data.address is string && data.address.size() <= 200)) &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() <= 40)) &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 120)) &&
+             (!('directorName' in data) || (data.directorName is string && data.directorName.size() <= 100)) &&
+             (!('registrationNumber' in data) || (data.registrationNumber is string && data.registrationNumber.size() <= 80)) &&
+             (!('primaryColorHex' in data) || (data.primaryColorHex is string && data.primaryColorHex.size() <= 16)) &&
+             (!('secondaryColorHex' in data) || (data.secondaryColorHex is string && data.secondaryColorHex.size() <= 16)) &&
+             (!('accentColorHex' in data) || (data.accentColorHex is string && data.accentColorHex.size() <= 16)) &&
+             (!('logoPrimaryBase64' in data) || (data.logoPrimaryBase64 is string && data.logoPrimaryBase64.size() <= 200000)) &&
+             (!('logoSecondaryBase64' in data) || (data.logoSecondaryBase64 is string && data.logoSecondaryBase64.size() <= 200000)) &&
+             (!('stampBase64' in data) || (data.stampBase64 is string && data.stampBase64.size() <= 200000)) &&
+             (!('signatureBase64' in data) || (data.signatureBase64 is string && data.signatureBase64.size() <= 200000)) &&
+             (!('activeAcademicYearId' in data) || (data.activeAcademicYearId is string && data.activeAcademicYearId.size() <= 128)) &&
+             (!('activeAcademicYearName' in data) || (data.activeAcademicYearName is string && data.activeAcademicYearName.size() <= 60)) &&
+             isValidTimestamps(data);
+    }
+
+    function isValidSubscription(data) {
+      return data.schoolId is string && data.schoolId.size() >= 1 && data.schoolId.size() <= 128 &&
+             data.schoolName is string && data.schoolName.size() >= 1 && data.schoolName.size() <= 120 &&
+             data.ownerUid is string && data.ownerUid.size() >= 1 && data.ownerUid.size() <= 128 &&
+             data.planName is string && data.planName.size() >= 1 && data.planName.size() <= 60 &&
+             data.monthlyFeeFcfa is int && data.monthlyFeeFcfa >= 0 &&
+             data.monthsCount is int && data.monthsCount >= 1 && data.monthsCount <= 60 &&
+             data.totalAmountFcfa is int && data.totalAmountFcfa >= 0 &&
+             data.paymentMethod in ['CASH', 'ORANGE_MONEY', 'MTN_MOMO', 'BANK_TRANSFER', 'OTHER'] &&
+             data.referenceCode is string && data.referenceCode.size() <= 80 &&
+             data.status in ['PENDING', 'ACTIVE', 'EXPIRED', 'SUSPENDED'] &&
+             data.startDateMillis is int && data.startDateMillis >= 0 &&
+             data.endDateMillis is int && data.endDateMillis >= 0 &&
+             (!('proofNote' in data) || (data.proofNote is string && data.proofNote.size() <= 300)) &&
+             isValidTimestamps(data);
+    }
+
+    function isValidSupportTicket(data) {
+      return data.schoolId is string && data.schoolId.size() >= 1 && data.schoolId.size() <= 128 &&
+             data.schoolName is string && data.schoolName.size() >= 1 && data.schoolName.size() <= 120 &&
+             data.requesterUid is string && data.requesterUid.size() >= 1 && data.requesterUid.size() <= 128 &&
+             data.requesterName is string && data.requesterName.size() >= 1 && data.requesterName.size() <= 100 &&
+             data.subject is string && data.subject.size() >= 2 && data.subject.size() <= 150 &&
+             data.description is string && data.description.size() >= 2 && data.description.size() <= 1500 &&
+             data.priority in ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] &&
+             data.status in ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'] &&
+             (!('resolutionNote' in data) || (data.resolutionNote is string && data.resolutionNote.size() <= 1000)) &&
+             isValidTimestamps(data);
+    }
+
+    function isValidInterventionLog(data) {
+      return data.schoolId is string && data.schoolId.size() >= 1 && data.schoolId.size() <= 128 &&
+             data.schoolName is string && data.schoolName.size() >= 1 && data.schoolName.size() <= 120 &&
+             data.adminUid is string && data.adminUid.size() >= 1 && data.adminUid.size() <= 128 &&
+             data.adminEmail is string && data.adminEmail.size() >= 3 && data.adminEmail.size() <= 120 &&
+             data.reason is string && data.reason.size() >= 2 && data.reason.size() <= 300 &&
+             data.actionSummary is string && data.actionSummary.size() >= 2 && data.actionSummary.size() <= 500 &&
+             data.authorizedByOwnerUid is string && data.authorizedByOwnerUid.size() >= 1 && data.authorizedByOwnerUid.size() <= 128 &&
+             isValidTimestamps(data);
+    }
+
+    function isValidAcademicYear(data, schoolId) {
+      return hasValidMemberScope(data, schoolId) &&
+             data.name is string && data.name.size() >= 2 && data.name.size() <= 40 &&
+             data.startDate is string && data.startDate.size() <= 30 &&
+             data.endDate is string && data.endDate.size() <= 30 &&
+             data.status in ['PLANNED', 'ACTIVE', 'ARCHIVED'] &&
+             data.termSystem in ['TRIMESTER', 'SEMESTER'] &&
+             data.passingAverage is number && data.passingAverage >= 0 && data.passingAverage <= 20 &&
+             isValidTimestamps(data);
+    }
+
+    function isValidSchoolMember(data, schoolId) {
+      return hasValidMemberScope(data, schoolId) &&
+             data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 120 &&
+             data.role in ['DIRECTOR', 'BURSAR', 'SECRETARY', 'TEACHER', 'PARENT', 'STUDENT'] &&
+             data.active is bool &&
+             data.salaryFcfa is int && data.salaryFcfa >= 0 &&
+             data.linkedStudentIds is list && data.linkedStudentIds.size() <= 20 &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 120)) &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() <= 40)) &&
+             (!('subjectSpecialty' in data) || (data.subjectSpecialty is string && data.subjectSpecialty.size() <= 100)) &&
+             (!('linkedUserUid' in data) || (data.linkedUserUid is string && data.linkedUserUid.size() <= 128)) &&
+             isValidTimestamps(data);
+    }
+
+    function isValidSchoolClass(data, schoolId) {
+      return hasValidMemberScope(data, schoolId) &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 60 &&
+             data.level is string && data.level.size() >= 1 && data.level.size() <= 60 &&
+             data.academicYearId is string && data.academicYearId.size() <= 128 &&
+             data.capacity is int && data.capacity >= 1 && data.capacity <= 500 &&
+             data.tuitionFeeFcfa is int && data.tuitionFeeFcfa >= 0 &&
+             data.registrationFeeFcfa is int && data.registrationFeeFcfa >= 0 &&
+             (!('mainTeacherName' in data) || (data.mainTeacherName is string && data.mainTeacherName.size() <= 120)) &&
+             isValidTimestamps(data);
+    }
+
+    function isValidSubject(data, schoolId) {
+      return hasValidMemberScope(data, schoolId) &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+             data.code is string && data.code.size() >= 1 && data.code.size() <= 20 &&
+             data.classId is string && data.classId.size() >= 1 && data.classId.size() <= 128 &&
+             data.className is string && data.className.size() >= 1 && data.className.size() <= 60 &&
+             data.coefficient is number && data.coefficient >= 0.5 && data.coefficient <= 20 &&
+             data.weeklyHours is int && data.weeklyHours >= 0 && data.weeklyHours <= 40 &&
+             (!('teacherName' in data) || (data.teacherName is string && data.teacherName.size() <= 120)) &&
+             (!('syllabusSummary' in data) || (data.syllabusSummary is string && data.syllabusSummary.size() <= 1000)) &&
+             isValidTimestamps(data);
+    }
+
+    function isValidScheduleSlot(data, schoolId) {
+      return hasValidMemberScope(data, schoolId) &&
+             data.classId is string && data.classId.size() >= 1 && data.classId.size() <= 128 &&
+             data.className is string && data.className.size() >= 1 && data.className.size() <= 60 &&
+             data.subjectId is string && data.subjectId.size() >= 1 && data.subjectId.size() <= 128 &&
+             data.subjectName is string && data.subjectName.size() >= 1 && data.subjectName.size() <= 100 &&
+             data.dayOfWeek is int && data.dayOfWeek >= 1 && data.dayOfWeek <= 7 &&
+             data.startTime is string && data.startTime.size() >= 3 && data.startTime.size() <= 10 &&
+             data.endTime is string && data.endTime.size() >= 3 && data.endTime.size() <= 10 &&
+             (!('teacherName' in data) || (data.teacherName is string && data.teacherName.size() <= 120)) &&
+             (!('room' in data) || (data.room is string && data.room.size() <= 40)) &&
+             isValidTimestamps(data);
+    }
+
+    function isValidStudent(data, schoolId) {
+      return hasValidMemberScope(data, schoolId) &&
+             data.matricule is string && data.matricule.size() >= 2 && data.matricule.size() <= 40 &&
+             data.firstName is string && data.firstName.size() >= 1 && data.firstName.size() <= 80 &&
+             data.lastName is string && data.lastName.size() >= 1 && data.lastName.size() <= 80 &&
+             data.gender in ['M', 'F'] &&
+             data.classId is string && data.classId.size() >= 1 && data.classId.size() <= 128 &&
+             data.className is string && data.className.size() >= 1 && data.className.size() <= 60 &&
+             data.academicYearId is string && data.academicYearId.size() <= 128 &&
+             data.scholarshipDiscountFcfa is int && data.scholarshipDiscountFcfa >= 0 &&
+             data.enrollmentStatus in ['ENROLLED', 'RE_ENROLLED', 'TRANSFERRED', 'GRADUATED'] &&
+             (!('birthDate' in data) || (data.birthDate is string && data.birthDate.size() <= 30)) &&
+             (!('birthPlace' in data) || (data.birthPlace is string && data.birthPlace.size() <= 100)) &&
+             (!('parentName' in data) || (data.parentName is string && data.parentName.size() <= 120)) &&
+             (!('parentPhone' in data) || (data.parentPhone is string && data.parentPhone.size() <= 40)) &&
+             (!('parentEmail' in data) || (data.parentEmail is string && data.parentEmail.size() <= 120)) &&
+             (!('parentUid' in data) || (data.parentUid is string && data.parentUid.size() <= 128)) &&
+             isValidTimestamps(data);
+    }
+
+    function isValidAssessment(data, schoolId) {
+      return hasValidMemberScope(data, schoolId) &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             data.type in ['DEVOIR', 'COMPOSITION', 'EXAMEN', 'TP'] &&
+             data.term in ['T1', 'T2', 'T3'] &&
+             data.classId is string && data.classId.size() >= 1 && data.classId.size() <= 128 &&
+             data.subjectId is string && data.subjectId.size() >= 1 && data.subjectId.size() <= 128 &&
+             data.subjectName is string && data.subjectName.size() >= 1 && data.subjectName.size() <= 100 &&
+             data.maxScore is number && data.maxScore >= 1 && data.maxScore <= 100 &&
+             data.dateMillis is int && data.dateMillis >= 0 &&
+             isValidTimestamps(data);
+    }
+
+    function isValidGradeRecord(data, schoolId) {
+      return hasValidMemberScope(data, schoolId) &&
+             data.studentId is string && data.studentId.size() >= 1 && data.studentId.size() <= 128 &&
+             data.studentName is string && data.studentName.size() >= 1 && data.studentName.size() <= 160 &&
+             data.studentMatricule is string && data.studentMatricule.size() >= 2 && data.studentMatricule.size() <= 40 &&
+             data.classId is string && data.classId.size() >= 1 && data.classId.size() <= 128 &&
+             data.subjectId is string && data.subjectId.size() >= 1 && data.subjectId.size() <= 128 &&
+             data.subjectName is string && data.subjectName.size() >= 1 && data.subjectName.size() <= 100 &&
+             data.coefficient is number && data.coefficient >= 0.5 && data.coefficient <= 20 &&
+             data.assessmentId is string && data.assessmentId.size() >= 1 && data.assessmentId.size() <= 128 &&
+             data.assessmentTitle is string && data.assessmentTitle.size() >= 1 && data.assessmentTitle.size() <= 120 &&
+             data.term in ['T1', 'T2', 'T3'] &&
+             data.score is number && data.score >= 0 && data.score <= 20 &&
+             (!('teacherRemark' in data) || (data.teacherRemark is string && data.teacherRemark.size() <= 300)) &&
+             isValidTimestamps(data);
+    }
+
+    function isValidAttendanceRecord(data, schoolId) {
+      return hasValidMemberScope(data, schoolId) &&
+             data.studentId is string && data.studentId.size() >= 1 && data.studentId.size() <= 128 &&
+             data.studentName is string && data.studentName.size() >= 1 && data.studentName.size() <= 160 &&
+             data.classId is string && data.classId.size() >= 1 && data.classId.size() <= 128 &&
+             data.className is string && data.className.size() >= 1 && data.className.size() <= 60 &&
+             data.dateIso is string && data.dateIso.size() >= 8 && data.dateIso.size() <= 20 &&
+             data.status in ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'] &&
+             data.justified is bool &&
+             data.minutesLate is int && data.minutesLate >= 0 && data.minutesLate <= 300 &&
+             (!('disciplineNote' in data) || (data.disciplineNote is string && data.disciplineNote.size() <= 400)) &&
+             isValidTimestamps(data);
+    }
+
+    function isValidPaymentRecord(data, schoolId) {
+      return hasValidMemberScope(data, schoolId) &&
+             data.receiptNumber is string && data.receiptNumber.size() >= 2 && data.receiptNumber.size() <= 50 &&
+             data.studentId is string && data.studentId.size() >= 1 && data.studentId.size() <= 128 &&
+             data.studentName is string && data.studentName.size() >= 1 && data.studentName.size() <= 160 &&
+             data.studentMatricule is string && data.studentMatricule.size() >= 2 && data.studentMatricule.size() <= 40 &&
+             data.classId is string && data.classId.size() >= 1 && data.classId.size() <= 128 &&
+             data.className is string && data.className.size() >= 1 && data.className.size() <= 60 &&
+             data.feeCategory in ['REGISTRATION', 'TUITION', 'INSTALLMENT', 'EXAM', 'UNIFORM', 'OTHER'] &&
+             data.amountFcfa is int && data.amountFcfa > 0 &&
+             data.method in ['CASH', 'ORANGE_MONEY', 'MTN_MOMO', 'BANK_TRANSFER', 'OTHER'] &&
+             data.paidAtMillis is int && data.paidAtMillis >= 0 &&
+             data.status in ['COMPLETED', 'REFUNDED'] &&
+             (!('referenceNumber' in data) || (data.referenceNumber is string && data.referenceNumber.size() <= 80)) &&
+             (!('note' in data) || (data.note is string && data.note.size() <= 300)) &&
+             isValidTimestamps(data);
+    }
+
+    function isValidExpenseRecord(data, schoolId) {
+      return hasValidMemberScope(data, schoolId) &&
+             data.title is string && data.title.size() >= 2 && data.title.size() <= 150 &&
+             data.category in ['SALARY', 'UTILITIES', 'MAINTENANCE', 'SUPPLIES', 'OTHER'] &&
+             data.amountFcfa is int && data.amountFcfa > 0 &&
+             data.method in ['CASH', 'ORANGE_MONEY', 'MTN_MOMO', 'BANK_TRANSFER', 'OTHER'] &&
+             data.expenseDateMillis is int && data.expenseDateMillis >= 0 &&
+             (!('beneficiary' in data) || (data.beneficiary is string && data.beneficiary.size() <= 120)) &&
+             (!('note' in data) || (data.note is string && data.note.size() <= 300)) &&
+             isValidTimestamps(data);
+    }
+
+    function isValidSchoolNotification(data, schoolId) {
+      return hasValidMemberScope(data, schoolId) &&
+             data.title is string && data.title.size() >= 2 && data.title.size() <= 150 &&
+             data.message is string && data.message.size() >= 2 && data.message.size() <= 2000 &&
+             data.audience in ['ALL', 'PARENTS', 'TEACHERS', 'CLASS'] &&
+             data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 100 &&
+             data.priority in ['NORMAL', 'URGENT'] &&
+             (!('targetClassId' in data) || (data.targetClassId is string && data.targetClassId.size() <= 128)) &&
+             isValidTimestamps(data);
+    }
+
+    function isValidCouncilDecision(data, schoolId) {
+      return hasValidMemberScope(data, schoolId) &&
+             data.academicYearId is string && data.academicYearId.size() <= 128 &&
+             data.classId is string && data.classId.size() >= 1 && data.classId.size() <= 128 &&
+             data.className is string && data.className.size() >= 1 && data.className.size() <= 60 &&
+             data.term in ['T1', 'T2', 'T3'] &&
+             data.studentId is string && data.studentId.size() >= 1 && data.studentId.size() <= 128 &&
+             data.studentName is string && data.studentName.size() >= 1 && data.studentName.size() <= 160 &&
+             data.average is number && data.average >= 0 && data.average <= 20 &&
+             data.rank is int && data.rank >= 1 &&
+             data.mention is string && data.mention.size() >= 1 && data.mention.size() <= 40 &&
+             data.decision in ['ADMITTED', 'HONOR_ROLL', 'WARNING', 'REPEAT', 'EXPELLED'] &&
+             (!('councilRemark' in data) || (data.councilRemark is string && data.councilRemark.size() <= 400)) &&
+             isValidTimestamps(data);
+    }
+
+    function isValidAutomationLog(data, schoolId) {
+      return hasValidMemberScope(data, schoolId) &&
+             data.jobType is string && data.jobType.size() >= 2 && data.jobType.size() <= 60 &&
+             data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 500 &&
+             data.affectedCount is int && data.affectedCount >= 0 &&
+             data.status in ['SUCCESS', 'WARNING', 'ERROR'] &&
+             data.executedBy is string && data.executedBy.size() >= 1 && data.executedBy.size() <= 120 &&
+             isValidTimestamps(data);
+    }
+
+    function isValidAuditLog(data, schoolId) {
+      return hasValidMemberScope(data, schoolId) &&
+             data.actorUid is string && data.actorUid.size() >= 1 && data.actorUid.size() <= 128 &&
+             data.actorEmail is string && data.actorEmail.size() >= 1 && data.actorEmail.size() <= 120 &&
+             data.action is string && data.action.size() >= 1 && data.action.size() <= 80 &&
+             data.entityType is string && data.entityType.size() >= 1 && data.entityType.size() <= 60 &&
+             data.entityId is string && data.entityId.size() >= 1 && data.entityId.size() <= 128 &&
+             data.details is string && data.details.size() <= 500 &&
+             isValidTimestamps(data);
+    }
+
+    // --- TOP-LEVEL COLLECTIONS ---
+
+    match /platform_config/{configId} {
+      allow get: if isSignedIn() && isValidId(configId);
+      allow list: if isSuperAdminToken();
+      allow create: if isSuperAdmin() && isValidId(configId) &&
+                       incoming().keys().hasAll(['appVersion', 'minSupportedVersion', 'maintenanceMode', 'standardMonthlyFeeFcfa', 'supportEmail', 'supportPhone', 'releaseNotes', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['appVersion', 'minSupportedVersion', 'maintenanceMode', 'standardMonthlyFeeFcfa', 'supportEmail', 'supportPhone', 'releaseNotes', 'createdAt', 'updatedAt']) &&
+                       isValidPlatformConfig(incoming());
+      allow update: if isSuperAdmin() && isValidId(configId) &&
+                       isValidPlatformConfig(incoming()) &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['appVersion', 'minSupportedVersion', 'maintenanceMode', 'standardMonthlyFeeFcfa', 'supportEmail', 'supportPhone', 'releaseNotes', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /admins/{uid} {
+      allow get: if isSignedIn() && isValidId(uid) && (request.auth.uid == uid || isSuperAdmin());
+      allow list: if isSuperAdminToken();
+      allow create: if isSuperAdmin() && isValidId(uid) &&
+                       incoming().uid == uid &&
+                       incoming().keys().hasAll(['uid', 'email', 'displayName', 'role', 'active', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['uid', 'email', 'displayName', 'role', 'active', 'createdAt', 'updatedAt']) &&
+                       isValidPlatformAdmin(incoming());
+      allow update: if isSuperAdmin() && isValidId(uid) &&
+                       isValidPlatformAdmin(incoming()) &&
+                       incoming().uid == existing().uid &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'role', 'active', 'updatedAt']);
+      allow delete: if isSuperAdmin() && isValidId(uid) && uid != request.auth.uid;
+    }
+
+    match /schools/{schoolId} {
+      allow get: if isSignedIn() && isValidId(schoolId) && (isSuperAdmin() || request.auth.uid in existing().memberUids);
+      allow list: if isSuperAdminToken() || (isSignedIn() && request.auth.uid in existing().memberUids);
+
+      allow create: if isSignedIn() && isValidId(schoolId) &&
+                       isValidSchool(incoming()) &&
+                       (isSuperAdmin() || incoming().ownerUid == request.auth.uid) &&
+                       incoming().ownerUid in incoming().memberUids &&
+                       incoming().keys().hasAll(['ownerUid', 'memberUids', 'name', 'code', 'schoolType', 'city', 'country', 'subscriptionStatus', 'subscriptionEndMillis', 'monthlyFeeFcfa', 'supportAccessEnabled', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['ownerUid', 'memberUids', 'name', 'code', 'schoolType', 'city', 'country', 'subscriptionStatus', 'subscriptionEndMillis', 'monthlyFeeFcfa', 'supportAccessEnabled', 'motto', 'address', 'phone', 'email', 'directorName', 'registrationNumber', 'primaryColorHex', 'secondaryColorHex', 'accentColorHex', 'logoPrimaryBase64', 'logoSecondaryBase64', 'stampBase64', 'signatureBase64', 'activeAcademicYearId', 'activeAcademicYearName', 'createdAt', 'updatedAt']);
+
+      allow update: if isSignedIn() && isValidId(schoolId) &&
+                       isValidSchool(incoming()) &&
+                       incoming().ownerUid == existing().ownerUid &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         (isSuperAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'name', 'code', 'schoolType', 'city', 'country', 'subscriptionStatus', 'subscriptionEndMillis', 'monthlyFeeFcfa', 'supportAccessEnabled', 'motto', 'address', 'phone', 'email', 'directorName', 'registrationNumber', 'primaryColorHex', 'secondaryColorHex', 'accentColorHex', 'logoPrimaryBase64', 'logoSecondaryBase64', 'stampBase64', 'signatureBase64', 'activeAcademicYearId', 'activeAcademicYearName', 'updatedAt'])) ||
+                         (request.auth.uid == existing().ownerUid &&
+                          incoming().subscriptionStatus == existing().subscriptionStatus &&
+                          incoming().subscriptionEndMillis == existing().subscriptionEndMillis &&
+                          incoming().monthlyFeeFcfa == existing().monthlyFeeFcfa &&
+                          incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'name', 'code', 'schoolType', 'city', 'country', 'supportAccessEnabled', 'motto', 'address', 'phone', 'email', 'directorName', 'registrationNumber', 'primaryColorHex', 'secondaryColorHex', 'accentColorHex', 'logoPrimaryBase64', 'logoSecondaryBase64', 'stampBase64', 'signatureBase64', 'activeAcademicYearId', 'activeAcademicYearName', 'updatedAt']))
+                       );
+
+      // No automatic deletion of school data; only Super Admin can explicitly remove
+      allow delete: if isSuperAdmin() && isValidId(schoolId);
+
+      // --- SCHOOL-SCOPED SUBCOLLECTIONS ---
+
+      match /academic_years/{yearId} {
+        allow get: if isValidId(schoolId) && isValidId(yearId) && isSchoolMemberRecord(existing());
+        allow list: if isValidId(schoolId) && isSchoolMemberRecord(existing());
+        allow create: if isValidId(schoolId) && isValidId(yearId) && isSchoolMemberRecord(incoming()) &&
+                         exists(/databases/$(database)/documents/schools/$(schoolId)) &&
+                         isValidAcademicYear(incoming(), schoolId) &&
+                         incoming().keys().hasAll(['schoolId', 'ownerUid', 'memberUids', 'name', 'startDate', 'endDate', 'status', 'termSystem', 'passingAverage', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['schoolId', 'ownerUid', 'memberUids', 'name', 'startDate', 'endDate', 'status', 'termSystem', 'passingAverage', 'createdAt', 'updatedAt']);
+        allow update: if isValidId(schoolId) && isValidId(yearId) && isSchoolMemberRecord(existing()) &&
+                         isValidAcademicYear(incoming(), schoolId) &&
+                         incoming().schoolId == existing().schoolId &&
+                         incoming().ownerUid == existing().ownerUid &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'name', 'startDate', 'endDate', 'status', 'termSystem', 'passingAverage', 'updatedAt']);
+        allow delete: if isValidId(schoolId) && isValidId(yearId) && isSchoolOwnerRecord(existing());
+      }
+
+      match /school_members/{memberId} {
+        allow get: if isValidId(schoolId) && isValidId(memberId) && isSchoolMemberRecord(existing());
+        allow list: if isValidId(schoolId) && isSchoolMemberRecord(existing());
+        allow create: if isValidId(schoolId) && isValidId(memberId) && isSchoolMemberRecord(incoming()) &&
+                         exists(/databases/$(database)/documents/schools/$(schoolId)) &&
+                         isValidSchoolMember(incoming(), schoolId) &&
+                         incoming().keys().hasAll(['schoolId', 'ownerUid', 'memberUids', 'fullName', 'role', 'active', 'salaryFcfa', 'linkedStudentIds', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['schoolId', 'ownerUid', 'memberUids', 'fullName', 'role', 'active', 'salaryFcfa', 'linkedStudentIds', 'email', 'phone', 'subjectSpecialty', 'linkedUserUid', 'createdAt', 'updatedAt']);
+        allow update: if isValidId(schoolId) && isValidId(memberId) && isSchoolMemberRecord(existing()) &&
+                         isValidSchoolMember(incoming(), schoolId) &&
+                         incoming().schoolId == existing().schoolId &&
+                         incoming().ownerUid == existing().ownerUid &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'fullName', 'role', 'active', 'salaryFcfa', 'linkedStudentIds', 'email', 'phone', 'subjectSpecialty', 'linkedUserUid', 'updatedAt']);
+        allow delete: if isValidId(schoolId) && isValidId(memberId) && isSchoolOwnerRecord(existing());
+      }
+
+      match /classes/{classId} {
+        allow get: if isValidId(schoolId) && isValidId(classId) && isSchoolMemberRecord(existing());
+        allow list: if isValidId(schoolId) && isSchoolMemberRecord(existing());
+        allow create: if isValidId(schoolId) && isValidId(classId) && isSchoolMemberRecord(incoming()) &&
+                         exists(/databases/$(database)/documents/schools/$(schoolId)) &&
+                         isValidSchoolClass(incoming(), schoolId) &&
+                         incoming().keys().hasAll(['schoolId', 'ownerUid', 'memberUids', 'name', 'level', 'academicYearId', 'capacity', 'tuitionFeeFcfa', 'registrationFeeFcfa', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['schoolId', 'ownerUid', 'memberUids', 'name', 'level', 'academicYearId', 'capacity', 'tuitionFeeFcfa', 'registrationFeeFcfa', 'mainTeacherName', 'createdAt', 'updatedAt']);
+        allow update: if isValidId(schoolId) && isValidId(classId) && isSchoolMemberRecord(existing()) &&
+                         isValidSchoolClass(incoming(), schoolId) &&
+                         incoming().schoolId == existing().schoolId &&
+                         incoming().ownerUid == existing().ownerUid &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'name', 'level', 'academicYearId', 'capacity', 'tuitionFeeFcfa', 'registrationFeeFcfa', 'mainTeacherName', 'updatedAt']);
+        allow delete: if isValidId(schoolId) && isValidId(classId) && isSchoolOwnerRecord(existing());
+      }
+
+      match /subjects/{subjectId} {
+        allow get: if isValidId(schoolId) && isValidId(subjectId) && isSchoolMemberRecord(existing());
+        allow list: if isValidId(schoolId) && isSchoolMemberRecord(existing());
+        allow create: if isValidId(schoolId) && isValidId(subjectId) && isSchoolMemberRecord(incoming()) &&
+                         exists(/databases/$(database)/documents/schools/$(schoolId)) &&
+                         isValidSubject(incoming(), schoolId) &&
+                         incoming().keys().hasAll(['schoolId', 'ownerUid', 'memberUids', 'name', 'code', 'classId', 'className', 'coefficient', 'weeklyHours', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['schoolId', 'ownerUid', 'memberUids', 'name', 'code', 'classId', 'className', 'coefficient', 'weeklyHours', 'teacherName', 'syllabusSummary', 'createdAt', 'updatedAt']);
+        allow update: if isValidId(schoolId) && isValidId(subjectId) && isSchoolMemberRecord(existing()) &&
+                         isValidSubject(incoming(), schoolId) &&
+                         incoming().schoolId == existing().schoolId &&
+                         incoming().ownerUid == existing().ownerUid &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'name', 'code', 'classId', 'className', 'coefficient', 'weeklyHours', 'teacherName', 'syllabusSummary', 'updatedAt']);
+        allow delete: if isValidId(schoolId) && isValidId(subjectId) && isSchoolOwnerRecord(existing());
+      }
+
+      match /schedules/{slotId} {
+        allow get: if isValidId(schoolId) && isValidId(slotId) && isSchoolMemberRecord(existing());
+        allow list: if isValidId(schoolId) && isSchoolMemberRecord(existing());
+        allow create: if isValidId(schoolId) && isValidId(slotId) && isSchoolMemberRecord(incoming()) &&
+                         exists(/databases/$(database)/documents/schools/$(schoolId)) &&
+                         isValidScheduleSlot(incoming(), schoolId) &&
+                         incoming().keys().hasAll(['schoolId', 'ownerUid', 'memberUids', 'classId', 'className', 'subjectId', 'subjectName', 'dayOfWeek', 'startTime', 'endTime', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['schoolId', 'ownerUid', 'memberUids', 'classId', 'className', 'subjectId', 'subjectName', 'dayOfWeek', 'startTime', 'endTime', 'teacherName', 'room', 'createdAt', 'updatedAt']);
+        allow update: if isValidId(schoolId) && isValidId(slotId) && isSchoolMemberRecord(existing()) &&
+                         isValidScheduleSlot(incoming(), schoolId) &&
+                         incoming().schoolId == existing().schoolId &&
+                         incoming().ownerUid == existing().ownerUid &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'classId', 'className', 'subjectId', 'subjectName', 'dayOfWeek', 'startTime', 'endTime', 'teacherName', 'room', 'updatedAt']);
+        allow delete: if isValidId(schoolId) && isValidId(slotId) && isSchoolOwnerRecord(existing());
+      }
+
+      match /students/{studentId} {
+        allow get: if isValidId(schoolId) && isValidId(studentId) && isSchoolMemberRecord(existing());
+        allow list: if isValidId(schoolId) && isSchoolMemberRecord(existing());
+        allow create: if isValidId(schoolId) && isValidId(studentId) && isSchoolMemberRecord(incoming()) &&
+                         exists(/databases/$(database)/documents/schools/$(schoolId)) &&
+                         isValidStudent(incoming(), schoolId) &&
+                         incoming().keys().hasAll(['schoolId', 'ownerUid', 'memberUids', 'matricule', 'firstName', 'lastName', 'gender', 'classId', 'className', 'academicYearId', 'scholarshipDiscountFcfa', 'enrollmentStatus', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['schoolId', 'ownerUid', 'memberUids', 'matricule', 'firstName', 'lastName', 'gender', 'classId', 'className', 'academicYearId', 'scholarshipDiscountFcfa', 'enrollmentStatus', 'birthDate', 'birthPlace', 'parentName', 'parentPhone', 'parentEmail', 'parentUid', 'createdAt', 'updatedAt']);
+        allow update: if isValidId(schoolId) && isValidId(studentId) && isSchoolMemberRecord(existing()) &&
+                         isValidStudent(incoming(), schoolId) &&
+                         incoming().schoolId == existing().schoolId &&
+                         incoming().ownerUid == existing().ownerUid &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'matricule', 'firstName', 'lastName', 'gender', 'classId', 'className', 'academicYearId', 'scholarshipDiscountFcfa', 'enrollmentStatus', 'birthDate', 'birthPlace', 'parentName', 'parentPhone', 'parentEmail', 'parentUid', 'updatedAt']);
+        allow delete: if isValidId(schoolId) && isValidId(studentId) && isSchoolOwnerRecord(existing());
+      }
+
+      match /assessments/{assessmentId} {
+        allow get: if isValidId(schoolId) && isValidId(assessmentId) && isSchoolMemberRecord(existing());
+        allow list: if isValidId(schoolId) && isSchoolMemberRecord(existing());
+        allow create: if isValidId(schoolId) && isValidId(assessmentId) && isSchoolMemberRecord(incoming()) &&
+                         exists(/databases/$(database)/documents/schools/$(schoolId)) &&
+                         isValidAssessment(incoming(), schoolId) &&
+                         incoming().keys().hasAll(['schoolId', 'ownerUid', 'memberUids', 'title', 'type', 'term', 'classId', 'subjectId', 'subjectName', 'maxScore', 'dateMillis', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['schoolId', 'ownerUid', 'memberUids', 'title', 'type', 'term', 'classId', 'subjectId', 'subjectName', 'maxScore', 'dateMillis', 'createdAt', 'updatedAt']);
+        allow update: if isValidId(schoolId) && isValidId(assessmentId) && isSchoolMemberRecord(existing()) &&
+                         isValidAssessment(incoming(), schoolId) &&
+                         incoming().schoolId == existing().schoolId &&
+                         incoming().ownerUid == existing().ownerUid &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'title', 'type', 'term', 'classId', 'subjectId', 'subjectName', 'maxScore', 'dateMillis', 'updatedAt']);
+        allow delete: if isValidId(schoolId) && isValidId(assessmentId) && isSchoolOwnerRecord(existing());
+      }
+
+      match /grades/{gradeId} {
+        allow get: if isValidId(schoolId) && isValidId(gradeId) && isSchoolMemberRecord(existing());
+        allow list: if isValidId(schoolId) && isSchoolMemberRecord(existing());
+        allow create: if isValidId(schoolId) && isValidId(gradeId) && isSchoolMemberRecord(incoming()) &&
+                         exists(/databases/$(database)/documents/schools/$(schoolId)) &&
+                         isValidGradeRecord(incoming(), schoolId) &&
+                         incoming().keys().hasAll(['schoolId', 'ownerUid', 'memberUids', 'studentId', 'studentName', 'studentMatricule', 'classId', 'subjectId', 'subjectName', 'coefficient', 'assessmentId', 'assessmentTitle', 'term', 'score', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['schoolId', 'ownerUid', 'memberUids', 'studentId', 'studentName', 'studentMatricule', 'classId', 'subjectId', 'subjectName', 'coefficient', 'assessmentId', 'assessmentTitle', 'term', 'score', 'teacherRemark', 'createdAt', 'updatedAt']);
+        allow update: if isValidId(schoolId) && isValidId(gradeId) && isSchoolMemberRecord(existing()) &&
+                         isValidGradeRecord(incoming(), schoolId) &&
+                         incoming().schoolId == existing().schoolId &&
+                         incoming().ownerUid == existing().ownerUid &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'score', 'teacherRemark', 'coefficient', 'updatedAt']);
+        allow delete: if isValidId(schoolId) && isValidId(gradeId) && isSchoolOwnerRecord(existing());
+      }
+
+      match /attendance/{attendanceId} {
+        allow get: if isValidId(schoolId) && isValidId(attendanceId) && isSchoolMemberRecord(existing());
+        allow list: if isValidId(schoolId) && isSchoolMemberRecord(existing());
+        allow create: if isValidId(schoolId) && isValidId(attendanceId) && isSchoolMemberRecord(incoming()) &&
+                         exists(/databases/$(database)/documents/schools/$(schoolId)) &&
+                         isValidAttendanceRecord(incoming(), schoolId) &&
+                         incoming().keys().hasAll(['schoolId', 'ownerUid', 'memberUids', 'studentId', 'studentName', 'classId', 'className', 'dateIso', 'status', 'justified', 'minutesLate', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['schoolId', 'ownerUid', 'memberUids', 'studentId', 'studentName', 'classId', 'className', 'dateIso', 'status', 'justified', 'minutesLate', 'disciplineNote', 'createdAt', 'updatedAt']);
+        allow update: if isValidId(schoolId) && isValidId(attendanceId) && isSchoolMemberRecord(existing()) &&
+                         isValidAttendanceRecord(incoming(), schoolId) &&
+                         incoming().schoolId == existing().schoolId &&
+                         incoming().ownerUid == existing().ownerUid &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'status', 'justified', 'minutesLate', 'disciplineNote', 'updatedAt']);
+        allow delete: if isValidId(schoolId) && isValidId(attendanceId) && isSchoolOwnerRecord(existing());
+      }
+
+      match /payments/{paymentId} {
+        allow get: if isValidId(schoolId) && isValidId(paymentId) && isSchoolMemberRecord(existing());
+        allow list: if isValidId(schoolId) && isSchoolMemberRecord(existing());
+        allow create: if isValidId(schoolId) && isValidId(paymentId) && isSchoolMemberRecord(incoming()) &&
+                         exists(/databases/$(database)/documents/schools/$(schoolId)) &&
+                         isValidPaymentRecord(incoming(), schoolId) &&
+                         incoming().keys().hasAll(['schoolId', 'ownerUid', 'memberUids', 'receiptNumber', 'studentId', 'studentName', 'studentMatricule', 'classId', 'className', 'feeCategory', 'amountFcfa', 'method', 'paidAtMillis', 'status', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['schoolId', 'ownerUid', 'memberUids', 'receiptNumber', 'studentId', 'studentName', 'studentMatricule', 'classId', 'className', 'feeCategory', 'amountFcfa', 'method', 'paidAtMillis', 'status', 'referenceNumber', 'note', 'createdAt', 'updatedAt']);
+        allow update: if isValidId(schoolId) && isValidId(paymentId) && isSchoolOwnerRecord(existing()) &&
+                         isValidPaymentRecord(incoming(), schoolId) &&
+                         (existing().status != 'REFUNDED' || isSuperAdmin()) &&
+                         incoming().schoolId == existing().schoolId &&
+                         incoming().ownerUid == existing().ownerUid &&
+                         incoming().receiptNumber == existing().receiptNumber &&
+                         incoming().amountFcfa == existing().amountFcfa &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'note', 'updatedAt']);
+        allow delete: if isSuperAdmin() && isValidId(schoolId) && isValidId(paymentId);
+      }
+
+      match /expenses/{expenseId} {
+        allow get: if isValidId(schoolId) && isValidId(expenseId) && isSchoolMemberRecord(existing());
+        allow list: if isValidId(schoolId) && isSchoolMemberRecord(existing());
+        allow create: if isValidId(schoolId) && isValidId(expenseId) && isSchoolMemberRecord(incoming()) &&
+                         exists(/databases/$(database)/documents/schools/$(schoolId)) &&
+                         isValidExpenseRecord(incoming(), schoolId) &&
+                         incoming().keys().hasAll(['schoolId', 'ownerUid', 'memberUids', 'title', 'category', 'amountFcfa', 'method', 'expenseDateMillis', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['schoolId', 'ownerUid', 'memberUids', 'title', 'category', 'amountFcfa', 'method', 'expenseDateMillis', 'beneficiary', 'note', 'createdAt', 'updatedAt']);
+        allow update: if isValidId(schoolId) && isValidId(expenseId) && isSchoolOwnerRecord(existing()) &&
+                         isValidExpenseRecord(incoming(), schoolId) &&
+                         incoming().schoolId == existing().schoolId &&
+                         incoming().ownerUid == existing().ownerUid &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'category', 'amountFcfa', 'method', 'expenseDateMillis', 'beneficiary', 'note', 'updatedAt']);
+        allow delete: if isValidId(schoolId) && isValidId(expenseId) && isSchoolOwnerRecord(existing());
+      }
+
+      match /communications/{commId} {
+        allow get: if isValidId(schoolId) && isValidId(commId) && isSchoolMemberRecord(existing());
+        allow list: if isValidId(schoolId) && isSchoolMemberRecord(existing());
+        allow create: if isValidId(schoolId) && isValidId(commId) && isSchoolMemberRecord(incoming()) &&
+                         exists(/databases/$(database)/documents/schools/$(schoolId)) &&
+                         isValidSchoolNotification(incoming(), schoolId) &&
+                         incoming().keys().hasAll(['schoolId', 'ownerUid', 'memberUids', 'title', 'message', 'audience', 'senderName', 'priority', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['schoolId', 'ownerUid', 'memberUids', 'title', 'message', 'audience', 'senderName', 'priority', 'targetClassId', 'createdAt', 'updatedAt']);
+        allow update: if isValidId(schoolId) && isValidId(commId) && isSchoolOwnerRecord(existing()) &&
+                         isValidSchoolNotification(incoming(), schoolId) &&
+                         incoming().schoolId == existing().schoolId &&
+                         incoming().ownerUid == existing().ownerUid &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'message', 'audience', 'priority', 'targetClassId', 'updatedAt']);
+        allow delete: if isValidId(schoolId) && isValidId(commId) && isSchoolOwnerRecord(existing());
+      }
+
+      match /council_decisions/{decisionId} {
+        allow get: if isValidId(schoolId) && isValidId(decisionId) && isSchoolMemberRecord(existing());
+        allow list: if isValidId(schoolId) && isSchoolMemberRecord(existing());
+        allow create: if isValidId(schoolId) && isValidId(decisionId) && isSchoolMemberRecord(incoming()) &&
+                         exists(/databases/$(database)/documents/schools/$(schoolId)) &&
+                         isValidCouncilDecision(incoming(), schoolId) &&
+                         incoming().keys().hasAll(['schoolId', 'ownerUid', 'memberUids', 'academicYearId', 'classId', 'className', 'term', 'studentId', 'studentName', 'average', 'rank', 'mention', 'decision', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['schoolId', 'ownerUid', 'memberUids', 'academicYearId', 'classId', 'className', 'term', 'studentId', 'studentName', 'average', 'rank', 'mention', 'decision', 'councilRemark', 'createdAt', 'updatedAt']);
+        allow update: if isValidId(schoolId) && isValidId(decisionId) && isSchoolMemberRecord(existing()) &&
+                         isValidCouncilDecision(incoming(), schoolId) &&
+                         incoming().schoolId == existing().schoolId &&
+                         incoming().ownerUid == existing().ownerUid &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['average', 'rank', 'mention', 'decision', 'councilRemark', 'updatedAt']);
+        allow delete: if isValidId(schoolId) && isValidId(decisionId) && isSchoolOwnerRecord(existing());
+      }
+
+      match /automation_logs/{logId} {
+        allow get: if isValidId(schoolId) && isValidId(logId) && isSchoolMemberRecord(existing());
+        allow list: if isValidId(schoolId) && isSchoolMemberRecord(existing());
+        allow create: if isValidId(schoolId) && isValidId(logId) && isSchoolMemberRecord(incoming()) &&
+                         exists(/databases/$(database)/documents/schools/$(schoolId)) &&
+                         isValidAutomationLog(incoming(), schoolId) &&
+                         incoming().keys().hasAll(['schoolId', 'ownerUid', 'memberUids', 'jobType', 'summary', 'affectedCount', 'status', 'executedBy', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['schoolId', 'ownerUid', 'memberUids', 'jobType', 'summary', 'affectedCount', 'status', 'executedBy', 'createdAt', 'updatedAt']);
+        allow update, delete: if false;
+      }
+
+      match /audit_logs/{logId} {
+        allow get: if isValidId(schoolId) && isValidId(logId) && isSchoolMemberRecord(existing());
+        allow list: if isValidId(schoolId) && isSchoolMemberRecord(existing());
+        allow create: if isValidId(schoolId) && isValidId(logId) && isSchoolMemberRecord(incoming()) &&
+                         exists(/databases/$(database)/documents/schools/$(schoolId)) &&
+                         incoming().actorUid == request.auth.uid &&
+                         isValidAuditLog(incoming(), schoolId) &&
+                         incoming().keys().hasAll(['schoolId', 'ownerUid', 'memberUids', 'actorUid', 'actorEmail', 'action', 'entityType', 'entityId', 'details', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['schoolId', 'ownerUid', 'memberUids', 'actorUid', 'actorEmail', 'action', 'entityType', 'entityId', 'details', 'createdAt', 'updatedAt']);
+        allow update, delete: if false;
+      }
+    }
+
+    match /subscriptions/{subId} {
+      allow get: if isSignedIn() && isValidId(subId) && (isSuperAdmin() || existing().ownerUid == request.auth.uid);
+      allow list: if isSuperAdminToken() || (isSignedIn() && existing().ownerUid == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(subId) &&
+                       isValidSubscription(incoming()) &&
+                       exists(/databases/$(database)/documents/schools/$(incoming().schoolId)) &&
+                       (isSuperAdmin() || (incoming().ownerUid == request.auth.uid && incoming().status == 'PENDING')) &&
+                       incoming().keys().hasAll(['schoolId', 'schoolName', 'ownerUid', 'planName', 'monthlyFeeFcfa', 'monthsCount', 'totalAmountFcfa', 'paymentMethod', 'referenceCode', 'status', 'startDateMillis', 'endDateMillis', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['schoolId', 'schoolName', 'ownerUid', 'planName', 'monthlyFeeFcfa', 'monthsCount', 'totalAmountFcfa', 'paymentMethod', 'referenceCode', 'proofNote', 'status', 'startDateMillis', 'endDateMillis', 'createdAt', 'updatedAt']);
+      allow update: if isSuperAdmin() && isValidId(subId) &&
+                       isValidSubscription(incoming()) &&
+                       incoming().schoolId == existing().schoolId &&
+                       incoming().ownerUid == existing().ownerUid &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['status', 'startDateMillis', 'endDateMillis', 'proofNote', 'referenceCode', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /support_tickets/{ticketId} {
+      allow get: if isSignedIn() && isValidId(ticketId) && (isSuperAdmin() || existing().requesterUid == request.auth.uid);
+      allow list: if isSuperAdminToken() || (isSignedIn() && existing().requesterUid == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(ticketId) &&
+                       isValidSupportTicket(incoming()) &&
+                       incoming().requesterUid == request.auth.uid &&
+                       incoming().status == 'OPEN' &&
+                       incoming().keys().hasAll(['schoolId', 'schoolName', 'requesterUid', 'requesterName', 'subject', 'description', 'priority', 'status', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['schoolId', 'schoolName', 'requesterUid', 'requesterName', 'subject', 'description', 'priority', 'status', 'resolutionNote', 'createdAt', 'updatedAt']);
+      allow update: if isSignedIn() && isValidId(ticketId) &&
+                       isValidSupportTicket(incoming()) &&
+                       (existing().status != 'CLOSED' || isSuperAdmin()) &&
+                       incoming().schoolId == existing().schoolId &&
+                       incoming().requesterUid == existing().requesterUid &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         (isSuperAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['priority', 'status', 'resolutionNote', 'updatedAt'])) ||
+                         (existing().requesterUid == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['description', 'priority', 'status', 'updatedAt']))
+                       );
+      allow delete: if false;
+    }
+
+    match /intervention_logs/{logId} {
+      allow get: if isSignedIn() && isValidId(logId) && (isSuperAdmin() || existing().authorizedByOwnerUid == request.auth.uid);
+      allow list: if isSuperAdminToken() || (isSignedIn() && existing().authorizedByOwnerUid == request.auth.uid);
+      allow create: if isSuperAdmin() && isValidId(logId) &&
+                       incoming().adminUid == request.auth.uid &&
+                       isValidInterventionLog(incoming()) &&
+                       incoming().keys().hasAll(['schoolId', 'schoolName', 'adminUid', 'adminEmail', 'reason', 'actionSummary', 'authorizedByOwnerUid', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['schoolId', 'schoolName', 'adminUid', 'adminEmail', 'reason', 'actionSummary', 'authorizedByOwnerUid', 'createdAt', 'updatedAt']);
+      allow update, delete: if false;
+    }
+  }
+}

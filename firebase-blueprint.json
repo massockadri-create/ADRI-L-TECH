@@ -1,0 +1,543 @@
+{
+  "entities": {
+    "PlatformConfig": {
+      "title": "PlatformConfig",
+      "description": "Global ADRIEL TECH SaaS software version and subscription pricing configuration",
+      "type": "object",
+      "properties": {
+        "appVersion": { "type": "string" },
+        "minSupportedVersion": { "type": "string" },
+        "maintenanceMode": { "type": "boolean" },
+        "standardMonthlyFeeFcfa": { "type": "integer" },
+        "supportEmail": { "type": "string" },
+        "supportPhone": { "type": "string" },
+        "releaseNotes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["appVersion", "minSupportedVersion", "maintenanceMode", "standardMonthlyFeeFcfa", "supportEmail", "supportPhone", "releaseNotes", "createdAt", "updatedAt"]
+    },
+    "PlatformAdmin": {
+      "title": "PlatformAdmin",
+      "description": "ADRIEL TECH super administration account",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["SUPER_ADMIN", "SUPPORT_ADMIN"] },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "role", "active", "createdAt", "updatedAt"]
+    },
+    "School": {
+      "title": "School",
+      "description": "Isolated client school tenant with branding and subscription status",
+      "type": "object",
+      "properties": {
+        "ownerUid": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "schoolType": { "type": "string" },
+        "city": { "type": "string" },
+        "country": { "type": "string" },
+        "subscriptionStatus": { "type": "string", "enum": ["TRIAL", "ACTIVE", "EXPIRED", "SUSPENDED"] },
+        "subscriptionEndMillis": { "type": "integer" },
+        "monthlyFeeFcfa": { "type": "integer" },
+        "supportAccessEnabled": { "type": "boolean" },
+        "motto": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "directorName": { "type": "string" },
+        "registrationNumber": { "type": "string" },
+        "primaryColorHex": { "type": "string" },
+        "secondaryColorHex": { "type": "string" },
+        "accentColorHex": { "type": "string" },
+        "logoPrimaryBase64": { "type": "string" },
+        "logoSecondaryBase64": { "type": "string" },
+        "stampBase64": { "type": "string" },
+        "signatureBase64": { "type": "string" },
+        "activeAcademicYearId": { "type": "string" },
+        "activeAcademicYearName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerUid", "memberUids", "name", "code", "schoolType", "city", "country", "subscriptionStatus", "subscriptionEndMillis", "monthlyFeeFcfa", "supportAccessEnabled", "createdAt", "updatedAt"]
+    },
+    "Subscription": {
+      "title": "Subscription",
+      "description": "SaaS subscription billing and renewal record for a client school",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string" },
+        "schoolName": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "planName": { "type": "string" },
+        "monthlyFeeFcfa": { "type": "integer" },
+        "monthsCount": { "type": "integer" },
+        "totalAmountFcfa": { "type": "integer" },
+        "paymentMethod": { "type": "string", "enum": ["CASH", "ORANGE_MONEY", "MTN_MOMO", "BANK_TRANSFER", "OTHER"] },
+        "referenceCode": { "type": "string" },
+        "proofNote": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "ACTIVE", "EXPIRED", "SUSPENDED"] },
+        "startDateMillis": { "type": "integer" },
+        "endDateMillis": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "schoolName", "ownerUid", "planName", "monthlyFeeFcfa", "monthsCount", "totalAmountFcfa", "paymentMethod", "referenceCode", "status", "startDateMillis", "endDateMillis", "createdAt", "updatedAt"]
+    },
+    "SupportTicket": {
+      "title": "SupportTicket",
+      "description": "Support incident or assistance request between a school and ADRIEL TECH",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string" },
+        "schoolName": { "type": "string" },
+        "requesterUid": { "type": "string" },
+        "requesterName": { "type": "string" },
+        "subject": { "type": "string" },
+        "description": { "type": "string" },
+        "priority": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"] },
+        "status": { "type": "string", "enum": ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"] },
+        "resolutionNote": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "schoolName", "requesterUid", "requesterName", "subject", "description", "priority", "status", "createdAt", "updatedAt"]
+    },
+    "InterventionLog": {
+      "title": "InterventionLog",
+      "description": "Mandatory audit trail of ADRIEL TECH support interventions on private school data",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string" },
+        "schoolName": { "type": "string" },
+        "adminUid": { "type": "string" },
+        "adminEmail": { "type": "string" },
+        "reason": { "type": "string" },
+        "actionSummary": { "type": "string" },
+        "authorizedByOwnerUid": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "schoolName", "adminUid", "adminEmail", "reason", "actionSummary", "authorizedByOwnerUid", "createdAt", "updatedAt"]
+    },
+    "AcademicYear": {
+      "title": "AcademicYear",
+      "description": "School academic year configuration",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "name": { "type": "string" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["PLANNED", "ACTIVE", "ARCHIVED"] },
+        "termSystem": { "type": "string", "enum": ["TRIMESTER", "SEMESTER"] },
+        "passingAverage": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "ownerUid", "memberUids", "name", "startDate", "endDate", "status", "termSystem", "passingAverage", "createdAt", "updatedAt"]
+    },
+    "SchoolMember": {
+      "title": "SchoolMember",
+      "description": "School personnel, teachers, parents, and student portal accounts",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "fullName": { "type": "string" },
+        "role": { "type": "string", "enum": ["DIRECTOR", "BURSAR", "SECRETARY", "TEACHER", "PARENT", "STUDENT"] },
+        "active": { "type": "boolean" },
+        "salaryFcfa": { "type": "integer" },
+        "linkedStudentIds": { "type": "array" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "subjectSpecialty": { "type": "string" },
+        "linkedUserUid": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "ownerUid", "memberUids", "fullName", "role", "active", "salaryFcfa", "linkedStudentIds", "createdAt", "updatedAt"]
+    },
+    "SchoolClass": {
+      "title": "SchoolClass",
+      "description": "School class and academic level with tuition fee schedule",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "name": { "type": "string" },
+        "level": { "type": "string" },
+        "academicYearId": { "type": "string" },
+        "capacity": { "type": "integer" },
+        "tuitionFeeFcfa": { "type": "integer" },
+        "registrationFeeFcfa": { "type": "integer" },
+        "mainTeacherName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "ownerUid", "memberUids", "name", "level", "academicYearId", "capacity", "tuitionFeeFcfa", "registrationFeeFcfa", "createdAt", "updatedAt"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "Subject with coefficient and syllabus attached to a class",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "classId": { "type": "string" },
+        "className": { "type": "string" },
+        "coefficient": { "type": "number" },
+        "weeklyHours": { "type": "integer" },
+        "teacherName": { "type": "string" },
+        "syllabusSummary": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "ownerUid", "memberUids", "name", "code", "classId", "className", "coefficient", "weeklyHours", "createdAt", "updatedAt"]
+    },
+    "ScheduleSlot": {
+      "title": "ScheduleSlot",
+      "description": "Timetable slot for a class and subject",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "classId": { "type": "string" },
+        "className": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "subjectName": { "type": "string" },
+        "dayOfWeek": { "type": "integer" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "teacherName": { "type": "string" },
+        "room": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "ownerUid", "memberUids", "classId", "className", "subjectId", "subjectName", "dayOfWeek", "startTime", "endTime", "createdAt", "updatedAt"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Enrolled student with auto-generated matricule and guardian details",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "matricule": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "gender": { "type": "string", "enum": ["M", "F"] },
+        "classId": { "type": "string" },
+        "className": { "type": "string" },
+        "academicYearId": { "type": "string" },
+        "scholarshipDiscountFcfa": { "type": "integer" },
+        "enrollmentStatus": { "type": "string", "enum": ["ENROLLED", "RE_ENROLLED", "TRANSFERRED", "GRADUATED"] },
+        "birthDate": { "type": "string" },
+        "birthPlace": { "type": "string" },
+        "parentName": { "type": "string" },
+        "parentPhone": { "type": "string" },
+        "parentEmail": { "type": "string" },
+        "parentUid": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "ownerUid", "memberUids", "matricule", "firstName", "lastName", "gender", "classId", "className", "academicYearId", "scholarshipDiscountFcfa", "enrollmentStatus", "createdAt", "updatedAt"]
+    },
+    "Assessment": {
+      "title": "Assessment",
+      "description": "Exam, test, or devoir definition",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "title": { "type": "string" },
+        "type": { "type": "string", "enum": ["DEVOIR", "COMPOSITION", "EXAMEN", "TP"] },
+        "term": { "type": "string", "enum": ["T1", "T2", "T3"] },
+        "classId": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "subjectName": { "type": "string" },
+        "maxScore": { "type": "number" },
+        "dateMillis": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "ownerUid", "memberUids", "title", "type", "term", "classId", "subjectId", "subjectName", "maxScore", "dateMillis", "createdAt", "updatedAt"]
+    },
+    "GradeRecord": {
+      "title": "GradeRecord",
+      "description": "Individual student grade for an assessment",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "studentMatricule": { "type": "string" },
+        "classId": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "subjectName": { "type": "string" },
+        "coefficient": { "type": "number" },
+        "assessmentId": { "type": "string" },
+        "assessmentTitle": { "type": "string" },
+        "term": { "type": "string", "enum": ["T1", "T2", "T3"] },
+        "score": { "type": "number" },
+        "teacherRemark": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "ownerUid", "memberUids", "studentId", "studentName", "studentMatricule", "classId", "subjectId", "subjectName", "coefficient", "assessmentId", "assessmentTitle", "term", "score", "createdAt", "updatedAt"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Student attendance, tardiness, and discipline record",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "classId": { "type": "string" },
+        "className": { "type": "string" },
+        "dateIso": { "type": "string" },
+        "status": { "type": "string", "enum": ["PRESENT", "ABSENT", "LATE", "EXCUSED"] },
+        "justified": { "type": "boolean" },
+        "minutesLate": { "type": "integer" },
+        "disciplineNote": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "ownerUid", "memberUids", "studentId", "studentName", "classId", "className", "dateIso", "status", "justified", "minutesLate", "createdAt", "updatedAt"]
+    },
+    "PaymentRecord": {
+      "title": "PaymentRecord",
+      "description": "Student tuition or registration payment with receipt tracking",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "receiptNumber": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "studentMatricule": { "type": "string" },
+        "classId": { "type": "string" },
+        "className": { "type": "string" },
+        "feeCategory": { "type": "string", "enum": ["REGISTRATION", "TUITION", "INSTALLMENT", "EXAM", "UNIFORM", "OTHER"] },
+        "amountFcfa": { "type": "integer" },
+        "method": { "type": "string", "enum": ["CASH", "ORANGE_MONEY", "MTN_MOMO", "BANK_TRANSFER", "OTHER"] },
+        "paidAtMillis": { "type": "integer" },
+        "status": { "type": "string", "enum": ["COMPLETED", "REFUNDED"] },
+        "referenceNumber": { "type": "string" },
+        "note": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "ownerUid", "memberUids", "receiptNumber", "studentId", "studentName", "studentMatricule", "classId", "className", "feeCategory", "amountFcfa", "method", "paidAtMillis", "status", "createdAt", "updatedAt"]
+    },
+    "ExpenseRecord": {
+      "title": "ExpenseRecord",
+      "description": "School expense and cash register outflow",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "title": { "type": "string" },
+        "category": { "type": "string", "enum": ["SALARY", "UTILITIES", "MAINTENANCE", "SUPPLIES", "OTHER"] },
+        "amountFcfa": { "type": "integer" },
+        "method": { "type": "string", "enum": ["CASH", "ORANGE_MONEY", "MTN_MOMO", "BANK_TRANSFER", "OTHER"] },
+        "expenseDateMillis": { "type": "integer" },
+        "beneficiary": { "type": "string" },
+        "note": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "ownerUid", "memberUids", "title", "category", "amountFcfa", "method", "expenseDateMillis", "createdAt", "updatedAt"]
+    },
+    "SchoolNotification": {
+      "title": "SchoolNotification",
+      "description": "School-to-parent and teacher announcement",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "audience": { "type": "string", "enum": ["ALL", "PARENTS", "TEACHERS", "CLASS"] },
+        "senderName": { "type": "string" },
+        "priority": { "type": "string", "enum": ["NORMAL", "URGENT"] },
+        "targetClassId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "ownerUid", "memberUids", "title", "message", "audience", "senderName", "priority", "createdAt", "updatedAt"]
+    },
+    "CouncilDecision": {
+      "title": "CouncilDecision",
+      "description": "Class council deliberation decision for a student",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "academicYearId": { "type": "string" },
+        "classId": { "type": "string" },
+        "className": { "type": "string" },
+        "term": { "type": "string", "enum": ["T1", "T2", "T3"] },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "average": { "type": "number" },
+        "rank": { "type": "integer" },
+        "mention": { "type": "string" },
+        "decision": { "type": "string", "enum": ["ADMITTED", "HONOR_ROLL", "WARNING", "REPEAT", "EXPELLED"] },
+        "councilRemark": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "ownerUid", "memberUids", "academicYearId", "classId", "className", "term", "studentId", "studentName", "average", "rank", "mention", "decision", "createdAt", "updatedAt"]
+    },
+    "AutomationLog": {
+      "title": "AutomationLog",
+      "description": "History of scheduled and triggered school automations",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "jobType": { "type": "string" },
+        "summary": { "type": "string" },
+        "affectedCount": { "type": "integer" },
+        "status": { "type": "string", "enum": ["SUCCESS", "WARNING", "ERROR"] },
+        "executedBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "ownerUid", "memberUids", "jobType", "summary", "affectedCount", "status", "executedBy", "createdAt", "updatedAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Security and financial audit log entry for a school",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "actorUid": { "type": "string" },
+        "actorEmail": { "type": "string" },
+        "action": { "type": "string" },
+        "entityType": { "type": "string" },
+        "entityId": { "type": "string" },
+        "details": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "ownerUid", "memberUids", "actorUid", "actorEmail", "action", "entityType", "entityId", "details", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/platform_config/{configId}": {
+      "schema": { "$ref": "#/entities/PlatformConfig" },
+      "description": "Global ADRIEL TECH SaaS configuration"
+    },
+    "/admins/{uid}": {
+      "schema": { "$ref": "#/entities/PlatformAdmin" },
+      "description": "ADRIEL TECH super administrators"
+    },
+    "/schools/{schoolId}": {
+      "schema": { "$ref": "#/entities/School" },
+      "description": "Isolated client schools"
+    },
+    "/subscriptions/{subId}": {
+      "schema": { "$ref": "#/entities/Subscription" },
+      "description": "School monthly subscriptions at 20,000 FCFA/month"
+    },
+    "/support_tickets/{ticketId}": {
+      "schema": { "$ref": "#/entities/SupportTicket" },
+      "description": "School support incidents"
+    },
+    "/intervention_logs/{logId}": {
+      "schema": { "$ref": "#/entities/InterventionLog" },
+      "description": "Audit log of support interventions"
+    },
+    "/schools/{schoolId}/academic_years/{yearId}": {
+      "schema": { "$ref": "#/entities/AcademicYear" },
+      "description": "Academic years for a school"
+    },
+    "/schools/{schoolId}/school_members/{memberId}": {
+      "schema": { "$ref": "#/entities/SchoolMember" },
+      "description": "Personnel, teachers, parents, and students"
+    },
+    "/schools/{schoolId}/classes/{classId}": {
+      "schema": { "$ref": "#/entities/SchoolClass" },
+      "description": "Classes and tuition tariffs"
+    },
+    "/schools/{schoolId}/subjects/{subjectId}": {
+      "schema": { "$ref": "#/entities/Subject" },
+      "description": "Subjects and coefficients"
+    },
+    "/schools/{schoolId}/schedules/{slotId}": {
+      "schema": { "$ref": "#/entities/ScheduleSlot" },
+      "description": "Class timetable slots"
+    },
+    "/schools/{schoolId}/students/{studentId}": {
+      "schema": { "$ref": "#/entities/Student" },
+      "description": "Enrolled students"
+    },
+    "/schools/{schoolId}/assessments/{assessmentId}": {
+      "schema": { "$ref": "#/entities/Assessment" },
+      "description": "Evaluations and exams"
+    },
+    "/schools/{schoolId}/grades/{gradeId}": {
+      "schema": { "$ref": "#/entities/GradeRecord" },
+      "description": "Student grades"
+    },
+    "/schools/{schoolId}/attendance/{attendanceId}": {
+      "schema": { "$ref": "#/entities/AttendanceRecord" },
+      "description": "Attendance and discipline records"
+    },
+    "/schools/{schoolId}/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/PaymentRecord" },
+      "description": "Student payments and receipts"
+    },
+    "/schools/{schoolId}/expenses/{expenseId}": {
+      "schema": { "$ref": "#/entities/ExpenseRecord" },
+      "description": "School expenses"
+    },
+    "/schools/{schoolId}/communications/{commId}": {
+      "schema": { "$ref": "#/entities/SchoolNotification" },
+      "description": "Parent and teacher notifications"
+    },
+    "/schools/{schoolId}/council_decisions/{decisionId}": {
+      "schema": { "$ref": "#/entities/CouncilDecision" },
+      "description": "Class council decisions"
+    },
+    "/schools/{schoolId}/automation_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AutomationLog" },
+      "description": "Automation engine execution history"
+    },
+    "/schools/{schoolId}/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "School audit trail"
+    }
+  }
+}
