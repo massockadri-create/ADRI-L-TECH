@@ -110,6 +110,18 @@ class PlatformViewModel(
         }
     }
 
+    fun deleteSchool(school: School) {
+        viewModelScope.launch {
+            repository.deleteSchool(school.id)
+                .onSuccess {
+                    _actionMessage.value = "Établissement supprimé : ${school.name}"
+                }
+                .onFailure { e ->
+                    _actionMessage.value = e.localizedMessage ?: "Erreur suppression établissement"
+                }
+        }
+    }
+
     fun updateSubscriptionStatus(school: School, status: String, monthsToExtend: Long = 1L) {
         val now = System.currentTimeMillis()
         val base = maxOf(now, school.subscriptionEndMillis)
