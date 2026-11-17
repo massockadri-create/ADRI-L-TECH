@@ -175,6 +175,21 @@ class PlatformRepository(
         }
     }
 
+    suspend fun deleteSchool(schoolId: String): Result<Unit> {
+        val path = "schools/$schoolId"
+        return try {
+            requireUserId()
+            require(schoolId.isNotBlank())
+            db.document(path).delete().await()
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.DELETE, path)
+            Result.failure(e)
+        }
+    }
+
     suspend fun updateSchoolBranding(school: School): Result<Unit> {
         val path = "schools/${school.id}"
         return try {
