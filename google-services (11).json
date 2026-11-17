@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "822825426399",
+    "project_id": "adriel-school",
+    "storage_bucket": "adriel-school.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:822825426399:android:4a9b5b58aba2afaea1786a",
+        "android_client_info": {
+          "package_name": "com.aistudio.adrielschool.k7m2x9"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "822825426399-im8j225rcjnt9udubt98iooljpvhkedk.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aistudio.adrielschool.k7m2x9",
+            "certificate_hash": "d679e7239966ed52af59d03c3cdb295470316f03"
+          }
+        },
+        {
+          "client_id": "822825426399-s61sshl6878q4gf5l897utb0np3gqn80.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aistudio.adrielschool.k7m2x9",
+            "certificate_hash": "2e14fced10389094e3c20ddcd2d65ae9e7c394b4"
+          }
+        },
+        {
+          "client_id": "822825426399-n039og2fdm7f740kb530ktjuqhj7fp6u.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDNz6FlAOeZmCjQEynLvqbibqHumx5MSqs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "822825426399-n039og2fdm7f740kb530ktjuqhj7fp6u.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
